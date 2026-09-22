@@ -1,58 +1,28 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse
-from django.contrib.auth.decorators import user_passes_test
-from django.db.models import Count, Q
-from datetime import timedelta
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
 from .models import (
     Post, Comment, Like, Follow, Notification,
-    Message, Story, SavedPost
+    Message, Story, SavedPost, Reaction
 )
-from django.db.models import Count
-from .models import (
-    Post, Comment, Like, Follow, Notification,
-    Message, Story, SavedPost, Reaction     # ← Reaction add
-)
-@login_required
-@require_POST
-def toggle_reaction(request, post_id):
-    post = get_object_or_404(Post, id=post_id)
-    reaction_type = request.POST.get('reaction', 'like')
-    
-    if reaction_type not in ['like', 'love', 'haha', 'wow', 'sad', 'angry']:
-        reaction_type = 'like'
-    
-    existing = Reaction.objects.filter(user=request.user, post=post).first()
-    
-    if existing:
-        if existing.reaction_type == reaction_type:
-            # Same reaction → remove
-            existing.delete()
-            return JsonResponse({'removed': True, 'reaction': None, 'counts': get_reaction_counts(post)})
-        else:
-            # Different reaction → update
-            existing.reaction_type = reaction_type
-            existing.save()
-            return JsonResponse({'removed': False, 'reaction': reaction_type, 'counts': get_reaction_counts(post)})
-    else:
-        # New reaction
-        Reaction.objects.create(user=request.user, post=post, reaction_type=reaction_type)
-        return JsonResponse({'removed': False, 'reaction': reaction_type, 'counts': get_reaction_counts(post)})
 
 
-def get_reaction_counts(post):
+# ============ REACTION HELPERS ============
+def _get_reaction_counts(post):
+    """Helper: count reactions by type for a post."""
     counts = {}
-    for r in Reaction.objects.filter(post=post).values('reaction_type').annotate(count=Count('id')):
-        counts[r['reaction_type']] = r['count']
+    for row in Reaction.objects.filter(post=post).values('reaction_type').annotate(count=Count('id')):
+        counts[row['reaction_type']] = row['count']
     return counts
+
 
 # ============ AUTH ============
 def login_view(request):
@@ -94,7 +64,7 @@ def feed(request):
         'comments__author', 'comments__replies__author', 'likes'
     )
 
-    paginator = Paginator(posts_list, 5)   # 5 posts per page
+    paginator = Paginator(posts_list, 5)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
@@ -107,7 +77,6 @@ def feed(request):
         created_at__gte=cutoff
     ).select_related('author').order_by('-created_at')[:20]
 
-    # AJAX request (infinite scroll) → sirf posts HTML bhejo
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         html = render_to_string('social/_post_list.html', {
             'posts': page_obj,
@@ -127,6 +96,7 @@ def feed(request):
         'active_stories': active_stories,
         'has_next': page_obj.has_next(),
     })
+
 
 # ============ PROFILE ============
 @login_required
@@ -160,7 +130,6 @@ def edit_profile(request):
         profile.bio = request.POST.get('bio', '').strip()
         profile.location = request.POST.get('location', '').strip()
 
-        # Website — optional, auto-add https:// if user didn't include
         website = request.POST.get('website', '').strip()
         if website and not website.startswith(('http://', 'https://')):
             website = 'https://' + website
@@ -179,18 +148,20 @@ def edit_profile(request):
         'unread_count': unread_count
     })
 
+
+# ============ POSTS ============
 @login_required
 @require_POST
 def create_post(request):
     content = request.POST.get('content', '').strip()
     image = request.FILES.get('image')
-    video = request.FILES.get('video')      # ← ADD
+    video = request.FILES.get('video')
     if content or image or video:
         Post.objects.create(
             author=request.user,
             content=content,
             image=image,
-            video=video                       # ← ADD
+            video=video
         )
         return JsonResponse({'success': True})
     return JsonResponse({'error': 'Empty post'}, status=400)
@@ -232,6 +203,50 @@ def toggle_like(request, post_id):
             notif_type='like', post=post
         )
     return JsonResponse({'liked': True, 'count': post.likes_count})
+
+
+# ============ REACTION ============
+@login_required
+@require_POST
+def toggle_reaction(request, post_id):
+    post = get_object_or_404(Post, id=post_id)
+    reaction_type = request.POST.get('reaction', 'like')
+
+    if reaction_type not in ['like', 'love', 'haha', 'wow', 'sad', 'angry']:
+        reaction_type = 'like'
+
+    existing = Reaction.objects.filter(user=request.user, post=post).first()
+
+    if existing:
+        if existing.reaction_type == reaction_type:
+            existing.delete()
+            return JsonResponse({
+                'removed': True,
+                'reaction': None,
+                'counts': _get_reaction_counts(post),
+            })
+        else:
+            existing.reaction_type = reaction_type
+            existing.save()
+            return JsonResponse({
+                'removed': False,
+                'reaction': reaction_type,
+                'counts': _get_reaction_counts(post),
+            })
+    else:
+        Reaction.objects.create(user=request.user, post=post, reaction_type=reaction_type)
+
+        if post.author != request.user:
+            Notification.objects.create(
+                recipient=post.author, sender=request.user,
+                notif_type='like', post=post
+            )
+
+        return JsonResponse({
+            'removed': False,
+            'reaction': reaction_type,
+            'counts': _get_reaction_counts(post),
+        })
 
 
 # ============ COMMENT ============
@@ -288,6 +303,12 @@ def notifications(request):
     notifs = request.user.notifications.select_related('sender', 'post')[:50]
     request.user.notifications.filter(is_read=False).update(is_read=True)
     return render(request, 'social/notifications.html', {'notifications': notifs})
+
+
+@login_required
+def unread_count(request):
+    count = request.user.notifications.filter(is_read=False).count()
+    return JsonResponse({'count': count})
 
 
 # ============ SEARCH ============
@@ -397,59 +418,6 @@ def get_new_messages(request, username):
         ]
     })
 
-# ============ REACTIONS ============
-def _get_reaction_counts(post):
-    """Helper: count reactions by type for a post."""
-    counts = {}
-    for row in Reaction.objects.filter(post=post).values('reaction_type').annotate(count=Count('id')):
-        counts[row['reaction_type']] = row['count']
-    return counts
-
-
-@login_required
-@require_POST
-def toggle_reaction(request, post_id):
-    post = get_object_or_404(Post, id=post_id)
-    reaction_type = request.POST.get('reaction', 'like')
-
-    if reaction_type not in ['like', 'love', 'haha', 'wow', 'sad', 'angry']:
-        reaction_type = 'like'
-
-    existing = Reaction.objects.filter(user=request.user, post=post).first()
-
-    if existing:
-        if existing.reaction_type == reaction_type:
-            # Same reaction → remove
-            existing.delete()
-            return JsonResponse({
-                'removed': True,
-                'reaction': None,
-                'counts': _get_reaction_counts(post),
-            })
-        else:
-            # Different reaction → update
-            existing.reaction_type = reaction_type
-            existing.save()
-            return JsonResponse({
-                'removed': False,
-                'reaction': reaction_type,
-                'counts': _get_reaction_counts(post),
-            })
-    else:
-        Reaction.objects.create(user=request.user, post=post, reaction_type=reaction_type)
-
-        # Notify post author (if not self)
-        if post.author != request.user:
-            Notification.objects.create(
-                recipient=post.author, sender=request.user,
-                notif_type='like', post=post
-            )
-
-        return JsonResponse({
-            'removed': False,
-            'reaction': reaction_type,
-            'counts': _get_reaction_counts(post),
-        })
 
 # ============ STORIES ============
 @login_required
@@ -496,10 +464,11 @@ def saved_posts(request):
         'saved': saved,
         'unread_count': unread_count,
     })
+
+
 # ============ SUGGESTIONS ============
 @login_required
 def suggestions(request):
-    """Suggest users you're not following yet."""
     following_ids = list(request.user.following.values_list('following_id', flat=True))
     following_ids.append(request.user.id)
 
@@ -518,7 +487,8 @@ def suggestions(request):
         ]
     })
 
-# ============ PERMISSION HELPERS ============
+
+# ============ ADMIN HELPERS ============
 def is_admin(user):
     return user.is_authenticated and (user.is_superuser or user.profile.role == 'admin')
 
@@ -536,15 +506,15 @@ def admin_dashboard(request):
     total_comments = Comment.objects.count()
     total_messages = Message.objects.count()
     total_stories = Story.objects.count()
-    
+
     week_ago = timezone.now() - timedelta(days=7)
     new_users_week = User.objects.filter(date_joined__gte=week_ago).count()
     new_posts_week = Post.objects.filter(created_at__gte=week_ago).count()
-    
+
     top_users = User.objects.annotate(post_count=Count('posts')).order_by('-post_count')[:5]
     recent_users = User.objects.order_by('-date_joined')[:10]
     recent_posts = Post.objects.select_related('author').order_by('-created_at')[:10]
-    
+
     return render(request, 'social/admin_dashboard.html', {
         'total_users': total_users,
         'total_posts': total_posts,
@@ -567,9 +537,9 @@ def admin_users(request):
     query = request.GET.get('q', '').strip()
     role_filter = request.GET.get('role', '')
     status_filter = request.GET.get('status', '')
-    
+
     users = User.objects.select_related('profile').order_by('-date_joined')
-    
+
     if query:
         users = users.filter(Q(username__icontains=query) | Q(email__icontains=query))
     if role_filter:
@@ -578,7 +548,7 @@ def admin_users(request):
         users = users.filter(profile__is_banned=True)
     elif status_filter == 'active':
         users = users.filter(profile__is_banned=False)
-    
+
     return render(request, 'social/admin_users.html', {
         'users': users,
         'query': query,
@@ -597,16 +567,16 @@ def admin_change_role(request, user_id):
         return JsonResponse({'error': 'Cannot change your own role'}, status=400)
     if target.is_superuser:
         return JsonResponse({'error': 'Cannot change superuser'}, status=400)
-    
+
     new_role = request.POST.get('role', 'user')
     if new_role not in ['user', 'moderator', 'admin']:
         return JsonResponse({'error': 'Invalid role'}, status=400)
-    
+
     target.profile.role = new_role
     target.profile.save()
     target.is_staff = (new_role == 'admin')
     target.save()
-    
+
     return JsonResponse({'success': True, 'role': new_role})
 
 
@@ -619,14 +589,14 @@ def admin_toggle_ban(request, user_id):
         return JsonResponse({'error': 'Cannot ban yourself'}, status=400)
     if target.is_superuser:
         return JsonResponse({'error': 'Cannot ban superuser'}, status=400)
-    
+
     target.profile.is_banned = not target.profile.is_banned
     if target.profile.is_banned:
         target.profile.ban_reason = request.POST.get('reason', '').strip()
     else:
         target.profile.ban_reason = ''
     target.profile.save()
-    
+
     return JsonResponse({
         'success': True,
         'banned': target.profile.is_banned,
@@ -642,7 +612,7 @@ def admin_delete_user(request, user_id):
         return JsonResponse({'error': 'Cannot delete yourself'}, status=400)
     if target.is_superuser:
         return JsonResponse({'error': 'Cannot delete superuser'}, status=400)
-    
+
     username = target.username
     target.delete()
     return JsonResponse({'success': True, 'username': username})
@@ -656,7 +626,7 @@ def admin_posts(request):
     posts = Post.objects.select_related('author').order_by('-created_at')
     if query:
         posts = posts.filter(Q(content__icontains=query) | Q(author__username__icontains=query))
-    
+
     return render(request, 'social/admin_posts.html', {
         'posts': posts[:100],
         'query': query,
@@ -710,16 +680,9 @@ def admin_messages(request):
 def admin_activity(request):
     recent_follows = Follow.objects.select_related('follower', 'following').order_by('-created_at')[:20]
     recent_likes = Like.objects.select_related('user', 'post__author').order_by('-created_at')[:20]
-    
+
     return render(request, 'social/admin_activity.html', {
         'recent_follows': recent_follows,
         'recent_likes': recent_likes,
         'unread_count': request.user.notifications.filter(is_read=False).count(),
     })
-
-# ============ LIVE UNREAD COUNT ============
-@login_required
-def unread_count(request):
-    """Get unread notification count for live polling."""
-    count = request.user.notifications.filter(is_read=False).count()
-    return JsonResponse({'count': count})
