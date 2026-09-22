@@ -1,0 +1,74 @@
+{% for post in posts %}
+<div class="post" data-post-id="{{ post.id }}">
+  <div class="post-header">
+    <a href="{% url 'profile' post.author.username %}" class="avatar">
+      {% if post.author.profile.avatar %}
+        <img src="{{ post.author.profile.avatar.url }}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+      {% else %}
+        {{ post.author.username|first }}
+      {% endif %}
+    </a>
+    <div class="post-meta">
+      <a href="{% url 'profile' post.author.username %}" class="author">{{ post.author.username }}</a>
+      <span class="time">{{ post.created_at|date:"M d, H:i" }}</span>
+    </div>
+    {% if post.author == user %}
+    <div class="post-menu">
+      <button class="menu-btn">⋯</button>
+      <div class="menu-dropdown">
+        <a href="#" class="edit-post" data-post-id="{{ post.id }}">✏️ Edit</a>
+        <a href="#" class="delete-post" data-post-id="{{ post.id }}">🗑️ Delete</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if post.content %}<p class="post-content">{{ post.content }}</p>{% endif %}
+  {% if post.image %}<img src="{{ post.image.url }}" class="post-image" loading="lazy">{% endif %}
+  {% if post.video %}
+  <video src="{{ post.video.url }}" controls class="post-image" preload="metadata"
+         style="max-height:600px;background:#000;width:100%;"></video>
+  {% endif %}
+
+  <div class="post-actions">
+    <div class="reaction-wrapper">
+      <button class="action-btn reaction-btn" data-post-id="{{ post.id }}">
+        <span class="reaction-icon">❤️</span>
+        <span class="reaction-count">{{ post.likes_count }}</span>
+      </button>
+      <div class="reaction-picker" id="picker-{{ post.id }}">
+        <button class="reaction-option" data-reaction="like" title="Like">❤️</button>
+        <button class="reaction-option" data-reaction="love" title="Love">😍</button>
+        <button class="reaction-option" data-reaction="haha" title="Haha">😂</button>
+        <button class="reaction-option" data-reaction="wow" title="Wow">😮</button>
+        <button class="reaction-option" data-reaction="sad" title="Sad">😢</button>
+        <button class="reaction-option" data-reaction="angry" title="Angry">😡</button>
+      </div>
+    </div>
+
+    <button class="action-btn comment-toggle">💬 <span>{{ post.comments_count }}</span></button>
+
+    <button class="action-btn save-btn {% if post.id in saved_ids %}saved{% endif %}" data-post-id="{{ post.id }}">
+      {% if post.id in saved_ids %}🔖{% else %}📑{% endif %} <span>Save</span>
+    </button>
+  </div>
+
+  <div class="comments">
+    {% for c in post.top_level_comments %}
+    <div class="comment" data-comment-id="{{ c.id }}">
+      <strong>{{ c.author.username }}</strong>{{ c.content }}
+      <button class="reply-btn" data-comment-id="{{ c.id }}" data-post-id="{{ post.id }}">Reply</button>
+      {% for r in c.replies.all %}
+      <div class="comment reply" data-comment-id="{{ r.id }}">
+        <strong>{{ r.author.username }}</strong>{{ r.content }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <form class="comment-form" data-post-id="{{ post.id }}">
+      <input type="text" placeholder="Write a comment..." required maxlength="500">
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+{% endfor %}

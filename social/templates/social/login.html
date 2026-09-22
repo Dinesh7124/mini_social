@@ -1,0 +1,52 @@
+{% extends 'social/base.html' %}
+{% block title %}Login — MiniSocial{% endblock %}
+
+{% block body %}
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <h2>MiniSocial</h2>
+    <p class="auth-subtitle">Connect. Share. Engage.</p>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Login</button>
+      <button class="auth-tab" data-tab="register">Register</button>
+    </div>
+
+    <form method="POST" action="{% url 'login' %}" class="auth-form" id="login-form">
+      {% csrf_token %}
+      <div class="input-group" data-icon="👤">
+        <input type="text" name="username" placeholder="Username" required autofocus>
+      </div>
+      <div class="input-group" data-icon="🔒">
+        <input type="password" name="password" placeholder="Password" required>
+      </div>
+      <button type="submit">Sign In →</button>
+    </form>
+
+    <form method="POST" action="{% url 'register' %}" class="auth-form" id="register-form" style="display:none">
+      {% csrf_token %}
+      <div class="input-group" data-icon="👤">
+        <input type="text" name="username" placeholder="Choose a username" required>
+      </div>
+      <div class="input-group" data-icon="🔒">
+        <input type="password" name="password" placeholder="Create a password" required>
+      </div>
+      <button type="submit">Create Account →</button>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const isLogin = tab.dataset.tab === 'login';
+    document.getElementById('login-form').style.display = isLogin ? 'flex' : 'none';
+    document.getElementById('register-form').style.display = isLogin ? 'none' : 'flex';
+  });
+});
+</script>
+{% endblock %}

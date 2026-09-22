@@ -1,0 +1,26 @@
+{% extends 'social/base.html' %}
+{% block title %}Messages — MiniSocial{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 1.5rem;">💬 Messages</h2>
+
+{% for conv in conversations %}
+<a href="{% url 'chat' conv.user.username %}" class="post" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; text-decoration: none; color: inherit; {% if conv.unread %}border-color: var(--primary);{% endif %}">
+  <span class="avatar">{{ conv.user.username|first }}</span>
+  <div style="flex: 1;">
+    <strong>{{ conv.user.username }}</strong>
+    {% if conv.last_message %}
+    <p style="color: var(--text-muted); font-size: .9rem; margin-top: .25rem;">
+      {% if conv.last_message.sender == user %}You: {% endif %}{{ conv.last_message.content|truncatechars:50 }}
+    </p>
+    {% endif %}
+  </div>
+  {% if conv.unread %}<span class="badge" style="position: static;">{{ conv.unread }}</span>{% endif %}
+</a>
+{% empty %}
+<div class="empty">
+  <h3>No messages yet</h3>
+  <p>Start a conversation by visiting someone's profile.</p>
+</div>
+{% endfor %}
+{% endblock %}

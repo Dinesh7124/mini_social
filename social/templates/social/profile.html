@@ -1,0 +1,67 @@
+{% extends 'social/base.html' %}
+{% block title %}{{ profile_user.username }} — MiniSocial{% endblock %}
+
+{% block content %}
+<div class="profile-card">
+  <div class="profile-cover"
+       {% if profile_user.profile.cover %}
+       style="background-image: url('{{ profile_user.profile.cover.url }}'); background-size: cover; background-position: center;"
+       {% endif %}></div>
+  <div class="profile-body">
+    {% if profile_user.profile.avatar %}
+      <div class="profile-avatar-large">
+        <img src="{{ profile_user.profile.avatar.url }}" alt="{{ profile_user.username }}">
+      </div>
+    {% else %}
+      <div class="profile-avatar-large">{{ profile_user.username|first }}</div>
+    {% endif %}
+
+    <h2 class="profile-name">{{ profile_user.username }}</h2>
+    <p class="profile-handle">@{{ profile_user.username }}</p>
+
+    {% if profile_user.profile.bio %}<p class="profile-bio">{{ profile_user.profile.bio }}</p>{% endif %}
+
+    <div class="profile-meta">
+  {% if profile_user.profile.location %}<span>📍 {{ profile_user.profile.location }}</span>{% endif %}
+  {% if profile_user.profile.website %}<span>🔗 <a href="{{ profile_user.profile.website }}" target="_blank" rel="noopener">{{ profile_user.profile.website }}</a></span>{% endif %}
+</div>
+
+    <div class="stats">
+      <div class="stat"><strong id="followers-count">{{ profile_user.profile.followers_count }}</strong><span>Followers</span></div>
+      <div class="stat"><strong>{{ profile_user.profile.following_count }}</strong><span>Following</span></div>
+      <div class="stat"><strong>{{ posts.count }}</strong><span>Posts</span></div>
+    </div>
+
+    {% if profile_user == user %}
+      <a href="{% url 'edit_profile' %}" class="follow-btn" style="display:block;text-align:center;text-decoration:none;">✏️ Edit Profile</a>
+    {% else %}
+      <button id="follow-btn" class="follow-btn {% if is_following %}following{% endif %}" data-username="{{ profile_user.username }}">
+        {% if is_following %}Following ✓{% else %}Follow +{% endif %}
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+{% for post in posts %}
+<div class="post">
+  <div class="post-header">
+    <span class="avatar">{{ post.author.username|first }}</span>
+    <div class="post-meta">
+      <span class="author">{{ post.author.username }}</span>
+      <span class="time">{{ post.created_at|date:"M d, H:i" }}</span>
+    </div>
+  </div>
+  {% if post.content %}<p class="post-content">{{ post.content }}</p>{% endif %}
+  {% if post.image %}<img src="{{ post.image.url }}" class="post-image" loading="lazy">{% endif %}
+  <div class="post-actions">
+    <span class="action-btn">❤️ {{ post.likes_count }}</span>
+    <span class="action-btn">💬 {{ post.comments_count }}</span>
+  </div>
+</div>
+{% empty %}
+<div class="empty">
+  <h3>No posts yet</h3>
+  <p>{{ profile_user.username }} hasn't posted anything yet.</p>
+</div>
+{% endfor %}
+{% endblock %}

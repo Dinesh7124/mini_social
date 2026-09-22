@@ -1,0 +1,33 @@
+{% extends 'social/base.html' %}
+{% block title %}Edit Profile — MiniSocial{% endblock %}
+
+{% block content %}
+<div class="profile-card">
+  <div class="profile-body" style="padding: 2rem;">
+    <h2 style="margin-bottom: 1.5rem;">✏️ Edit Profile</h2>
+    <form method="POST" enctype="multipart/form-data" class="auth-form">
+      {% csrf_token %}
+
+      <label>Cover Photo</label>
+      <input type="file" name="cover" accept="image/*">
+
+      <label>Avatar</label>
+      <input type="file" name="avatar" accept="image/*">
+
+      <label>Bio</label>
+      <textarea name="bio" maxlength="300" rows="3"
+        style="padding: .85rem; border: 2px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 1rem; resize: vertical;"
+        placeholder="Tell us about yourself...">{{ profile.bio }}</textarea>
+
+      <label>Location <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+      <input type="text" name="location" value="{{ profile.location }}" placeholder="City, Country">
+
+      <label>Website <span style="color:var(--text-muted);font-weight:400;">(optional)</span></label>
+      <input type="text" name="website" value="{{ profile.website }}"
+             placeholder="example.com or https://example.com">
+
+      <button type="submit">Save Changes</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

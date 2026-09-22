@@ -1,0 +1,36 @@
+{% extends 'social/base.html' %}
+{% block title %}Search — MiniSocial{% endblock %}
+{% block content %}
+<h2 style="margin-bottom: 1rem;">Search results for "{{ query }}"</h2>
+
+{% if users %}
+<h3 style="margin: 1rem 0;">👥 People</h3>
+{% for u in users %}
+<a href="{% url 'profile' u.username %}" class="post" style="display: flex; align-items: center; gap: .75rem; padding: 1rem; text-decoration: none; color: inherit;">
+  <span class="avatar">{{ u.username|first }}</span>
+  <strong>{{ u.username }}</strong>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if posts %}
+<h3 style="margin: 1rem 0;">📝 Posts</h3>
+{% for p in posts %}
+<div class="post">
+  <div class="post-header">
+    <span class="avatar">{{ p.author.username|first }}</span>
+    <div class="post-meta">
+      <span class="author">{{ p.author.username }}</span>
+      <span class="time">{{ p.created_at|date:"M d, H:i" }}</span>
+    </div>
+  </div>
+  <p class="post-content">{{ p.content }}</p>
+  {% if p.image %}<img src="{{ p.image.url }}" class="post-image">{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if not users and not posts %}
+<div class="empty"><h3>No results found</h3><p>Try a different search term.</p></div>
+{% endif %}
+{% endblock %}

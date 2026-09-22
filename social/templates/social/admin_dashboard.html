@@ -1,0 +1,114 @@
+{% extends 'social/base.html' %}
+{% block title %}Admin Dashboard — MiniSocial{% endblock %}
+{% block main_class %}admin-main-wrapper{% endblock %}
+{% block content %}
+<div class="admin-container">
+  <h2 class="admin-title">⚙️ Admin Panel</h2>
+  
+  <!-- Stats Cards -->
+  <div class="admin-stats">
+    <div class="admin-stat-card">
+      <div class="admin-stat-icon">👥</div>
+      <div class="admin-stat-value">{{ total_users }}</div>
+      <div class="admin-stat-label">Total Users</div>
+      <div class="admin-stat-sub">+{{ new_users_week }} this week</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-icon">📝</div>
+      <div class="admin-stat-value">{{ total_posts }}</div>
+      <div class="admin-stat-label">Total Posts</div>
+      <div class="admin-stat-sub">+{{ new_posts_week }} this week</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-icon">💬</div>
+      <div class="admin-stat-value">{{ total_comments }}</div>
+      <div class="admin-stat-label">Comments</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-icon">✉️</div>
+      <div class="admin-stat-value">{{ total_messages }}</div>
+      <div class="admin-stat-label">Messages</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-icon">📸</div>
+      <div class="admin-stat-value">{{ total_stories }}</div>
+      <div class="admin-stat-label">Stories</div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="admin-quick-links">
+    <a href="{% url 'admin_users' %}" class="admin-quick-link">
+      <span>👥</span> Manage Users
+    </a>
+    <a href="{% url 'admin_posts' %}" class="admin-quick-link">
+      <span>📝</span> Manage Posts
+    </a>
+    <a href="{% url 'admin_comments' %}" class="admin-quick-link">
+      <span>💬</span> Manage Comments
+    </a>
+    <a href="{% url 'admin_messages' %}" class="admin-quick-link">
+      <span>✉️</span> Monitor Chats
+    </a>
+    <a href="{% url 'admin_activity' %}" class="admin-quick-link">
+      <span>📊</span> Activity Log
+    </a>
+    <a href="/admin/" class="admin-quick-link" target="_blank">
+      <span>🔧</span> Django Admin
+    </a>
+  </div>
+
+  <!-- Two Column Grid -->
+  <div class="admin-grid">
+    <!-- Recent Users -->
+    <div class="admin-card">
+      <h3>🆕 Recent Users</h3>
+      <div class="admin-list">
+        {% for u in recent_users %}
+        <a href="{% url 'profile' u.username %}" class="admin-list-item">
+          <span class="avatar" style="width:36px;height:36px;font-size:.85rem;">{{ u.username|first }}</span>
+          <div style="flex:1;">
+            <strong>{{ u.username }}</strong>
+            <small>{{ u.date_joined|timesince }} ago · {{ u.profile.role }}</small>
+          </div>
+          {% if u.profile.is_banned %}<span class="admin-tag danger">Banned</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Top Users -->
+    <div class="admin-card">
+      <h3>🏆 Top Posters</h3>
+      <div class="admin-list">
+        {% for u in top_users %}
+        <a href="{% url 'profile' u.username %}" class="admin-list-item">
+          <span class="avatar" style="width:36px;height:36px;font-size:.85rem;">{{ u.username|first }}</span>
+          <div style="flex:1;">
+            <strong>{{ u.username }}</strong>
+            <small>{{ u.post_count }} posts</small>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Posts -->
+  <div class="admin-card">
+    <h3>📝 Recent Posts</h3>
+    <div class="admin-list">
+      {% for p in recent_posts %}
+      <div class="admin-list-item">
+        <span class="avatar" style="width:36px;height:36px;font-size:.85rem;">{{ p.author.username|first }}</span>
+        <div style="flex:1;">
+          <strong>{{ p.author.username }}</strong>
+          <p style="color:var(--text-muted);font-size:.88rem;margin-top:.15rem;">{{ p.content|truncatechars:80 }}</p>
+          <small style="color:var(--text-muted);font-size:.75rem;">{{ p.created_at|timesince }} ago</small>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

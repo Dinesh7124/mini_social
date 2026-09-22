@@ -1,0 +1,30 @@
+{% extends 'social/base.html' %}
+{% block title %}Saved Posts — MiniSocial{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 1.5rem;">🔖 Saved Posts</h2>
+
+{% for s in saved %}
+<div class="post">
+  <div class="post-header">
+    <span class="avatar">{{ s.post.author.username|first }}</span>
+    <div class="post-meta">
+      <a href="{% url 'profile' s.post.author.username %}" class="author">{{ s.post.author.username }}</a>
+      <span class="time">{{ s.post.created_at|date:"M d, H:i" }}</span>
+    </div>
+  </div>
+  {% if s.post.content %}<p class="post-content">{{ s.post.content }}</p>{% endif %}
+  {% if s.post.image %}<img src="{{ s.post.image.url }}" class="post-image">{% endif %}
+  <div class="post-actions">
+    <span class="action-btn">❤️ {{ s.post.likes_count }}</span>
+    <span class="action-btn">💬 {{ s.post.comments_count }}</span>
+    <button class="action-btn save-btn saved" data-post-id="{{ s.post.id }}">🔖 <span>Saved</span></button>
+  </div>
+</div>
+{% empty %}
+<div class="empty">
+  <h3>No saved posts</h3>
+  <p>Click the 🔖 Save button on any post to save it here.</p>
+</div>
+{% endfor %}
+{% endblock %}

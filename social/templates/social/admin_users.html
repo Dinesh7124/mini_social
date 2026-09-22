@@ -1,0 +1,169 @@
+{% extends 'social/base.html' %}
+{% block title %}Manage Users — Admin{% endblock %}
+{% block main_class %}admin-main-wrapper{% endblock %}
+{% block content %}
+<div class="admin-container">
+  <div class="admin-header">
+    <h2 class="admin-title">👥 Manage Users</h2>
+    <a href="{% url 'admin_dashboard' %}" class="admin-back-btn">← Back to Dashboard</a>
+  </div>
+
+  <!-- Filters -->
+  <form method="GET" class="admin-filters">
+    <input type="text" name="q" placeholder="🔍 Search by username or email..." value="{{ query }}">
+    <select name="role">
+      <option value="">All Roles</option>
+      <option value="user" {% if role_filter == 'user' %}selected{% endif %}>Users</option>
+      <option value="moderator" {% if role_filter == 'moderator' %}selected{% endif %}>Moderators</option>
+      <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admins</option>
+    </select>
+    <select name="status">
+      <option value="">All Status</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+      <option value="banned" {% if status_filter == 'banned' %}selected{% endif %}>Banned</option>
+    </select>
+    <button type="submit" class="admin-btn primary">Filter</button>
+    <a href="{% url 'admin_users' %}" class="admin-btn">Clear</a>
+  </form>
+
+  <!-- Users Table -->
+  <div class="admin-table-wrapper">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr data-user-id="{{ u.id }}" data-username="{{ u.username }}">
+          <td>
+            <div class="admin-user-cell">
+              <span class="avatar" style="width:38px;height:38px;font-size:.85rem;flex-shrink:0;">
+                {% if u.profile.avatar %}
+                  <img src="{{ u.profile.avatar.url }}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                {% else %}
+                  {{ u.username|first }}
+                {% endif %}
+              </span>
+              <div style="min-width:0;">
+                <strong style="display:block;">{{ u.username }}</strong>
+                <div style="margin-top:.15rem;">
+                  {% if u.is_superuser %}<span class="admin-tag gold">Super</span>{% endif %}
+                  {% if u == request.user %}<span class="admin-tag info">You</span>{% endif %}
+                </div>
+              </div>
+            </div>
+          </td>
+          <td style="font-size:.85rem;color:var(--text-muted);">{{ u.email|default:"—" }}</td>
+          <td>
+            <select class="admin-role-select" data-user-id="{{ u.id }}"
+                    {% if u.is_superuser or u == request.user %}disabled{% endif %}>
+              <option value="user" {% if u.profile.role == 'user' %}selected{% endif %}>User</option>
+              <option value="moderator" {% if u.profile.role == 'moderator' %}selected{% endif %}>Moderator</option>
+              <option value="admin" {% if u.profile.role == 'admin' %}selected{% endif %}>Admin</option>
+            </select>
+          </td>
+          <td>
+            {% if u.profile.is_banned %}
+              <span class="admin-tag danger">Banned</span>
+            {% else %}
+              <span class="admin-tag success">Active</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.82rem;color:var(--text-muted);white-space:nowrap;">
+            {{ u.date_joined|date:"M d, Y" }}
+          </td>
+          <td>
+            <div class="admin-actions">
+              {% if u != request.user and not u.is_superuser %}
+                <button class="admin-btn-sm {% if u.profile.is_banned %}success{% else %}warning{% endif %}"
+                        onclick="toggleBan({{ u.id }}, '{{ u.username }}', {{ u.profile.is_banned|yesno:'true,false' }})">
+                  {% if u.profile.is_banned %}✅ Unban{% else %}🚫 Ban{% endif %}
+                </button>
+                <button class="admin-btn-sm danger" onclick="deleteUser({{ u.id }}, '{{ u.username }}')">
+                  🗑️
+                </button>
+              {% else %}
+                <span style="color:var(--text-muted);font-size:.8rem;">—</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:3rem 1rem;color:var(--text-muted);">
+            <div style="font-size:2rem;margin-bottom:.5rem;">🔍</div>
+            <strong>No users found</strong>
+            <p style="margin-top:.35rem;font-size:.9rem;">Try a different search or clear filters.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p style="text-align:center;color:var(--text-muted);font-size:.85rem;margin-top:1rem;">
+    Total: <strong>{{ users|length }}</strong> user{{ users|length|pluralize }}
+  </p>
+</div>
+
+<script>
+const CSRF = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)')?.pop() || '';
+
+document.querySelectorAll('.admin-role-select').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    const userId = sel.dataset.userId;
+    const role = sel.value;
+    if (!confirm(`Change role to "${role}"?`)) { location.reload(); return; }
+    const res = await fetch(`/panel/users/${userId}/role/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ role })
+    });
+    const data = await res.json();
+    if (res.ok) showToast(`✅ Role: ${role}`);
+    else { showToast(`❌ ${data.error}`); location.reload(); }
+  });
+});
+
+async function toggleBan(userId, username, isBanned) {
+  let reason = '';
+  if (!isBanned) {
+    reason = prompt(`Ban reason for "${username}":`, 'Violated guidelines');
+    if (reason === null) return;
+  } else {
+    if (!confirm(`Unban "${username}"?`)) return;
+  }
+  const res = await fetch(`/panel/users/${userId}/ban/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ reason })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(data.banned ? `🚫 Banned` : `✅ Unbanned`);
+    setTimeout(() => location.reload(), 700);
+  } else showToast(`❌ ${data.error}`);
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm(`Delete "${username}" permanently?`)) return;
+  if (!confirm('⚠️ This will delete ALL their content. Sure?')) return;
+  const res = await fetch(`/panel/users/${userId}/delete/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF }
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(`🗑️ ${username} deleted`);
+    document.querySelector(`tr[data-user-id="${userId}"]`)?.remove();
+  } else showToast(`❌ ${data.error}`);
+}
+</script>
+{% endblock %}

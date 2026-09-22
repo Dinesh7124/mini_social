@@ -1,0 +1,27 @@
+{% extends 'social/base.html' %}
+{% block title %}Stories — MiniSocial{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+  <h2>📸 Stories (Last 24 Hours)</h2>
+  <a href="{% url 'create_story' %}" class="follow-btn" style="width:auto;padding:.6rem 1.25rem;">+ Add Story</a>
+</div>
+
+<div class="stories-grid">
+  {% for story in stories %}
+  <div class="story-card">
+    <img src="{{ story.image.url }}" alt="story">
+    <div class="story-info">
+      <a href="{% url 'profile' story.author.username %}" class="author">@{{ story.author.username }}</a>
+      <span class="time">{{ story.created_at|timesince }} ago</span>
+      {% if story.caption %}<p>{{ story.caption }}</p>{% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty" style="grid-column: 1 / -1;">
+    <h3>No active stories</h3>
+    <p><a href="{% url 'create_story' %}" style="color:var(--primary);font-weight:600;">Add the first one! →</a></p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

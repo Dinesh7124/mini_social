@@ -1,0 +1,24 @@
+{% extends 'social/base.html' %}
+{% block title %}Banned — MiniSocial{% endblock %}
+
+{% block content %}
+<div class="banned-wrapper">
+  <div class="banned-card">
+    <div class="banned-icon">🚫</div>
+    <h2>Account Suspended</h2>
+    <p class="banned-text">Your account has been suspended from MiniSocial.</p>
+    
+    {% if reason %}
+    <div class="banned-reason">
+      <strong>Reason:</strong>
+      <p>{{ reason }}</p>
+    </div>
+    {% endif %}
+    
+    <p class="banned-help">If you believe this is a mistake, please contact the administrator.</p>
+    <a href="{% url 'logout' %}" class="follow-btn" style="display:block;text-align:center;text-decoration:none;margin-top:1.5rem;">
+      Logout
+    </a>
+  </div>
+</div>
+{% endblock %}

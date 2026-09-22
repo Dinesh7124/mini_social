@@ -1,0 +1,1 @@
+web: gunicorn mini_social.wsgi:application

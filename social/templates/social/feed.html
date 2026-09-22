@@ -1,0 +1,75 @@
+{% extends 'social/base.html' %}
+{% block title %}Home — MiniSocial{% endblock %}
+
+{% block content %}
+<!-- Stories bar -->
+<div class="stories-bar">
+  <a href="{% url 'create_story' %}" class="story-item add-story">
+    <div class="story-avatar">+</div>
+    <span>Add Story</span>
+  </a>
+
+  {% for story in active_stories %}
+    {% if story.author != user %}
+    <a href="{% url 'stories' %}" class="story-item" title="{{ story.author.username }}">
+      <div class="story-avatar" style="background-image: url('{{ story.image.url }}'); background-size: cover; background-position: center; color: transparent;">
+        {{ story.author.username|first }}
+      </div>
+      <span>{{ story.author.username|truncatechars:10 }}</span>
+    </a>
+    {% endif %}
+  {% endfor %}
+
+  {% if active_stories %}
+  <a href="{% url 'stories' %}" class="story-item">
+    <div class="story-avatar" style="background: linear-gradient(135deg, #ec4899, #f59e0b);">📸</div>
+    <span>View All</span>
+  </a>
+  {% endif %}
+</div>
+
+<!-- People You May Know -->
+<div id="suggestions-box" class="suggestions-box" style="display:none;">
+  <h3>👥 People You May Know</h3>
+  <div id="suggestions-list" class="suggestions-list"></div>
+</div>
+
+<!-- Composer -->
+<div class="composer">
+  <textarea id="post-content" placeholder="What's on your mind, {{ user.username }}?" maxlength="1000"></textarea>
+  <div id="image-preview"></div>
+  <div class="composer-footer">
+    <div class="composer-tools">
+      <label class="tool-btn" for="image-input">
+        📷 <span>Photo</span>
+        <input type="file" id="image-input" accept="image/*" hidden>
+      </label>
+      <label class="tool-btn" for="video-input">
+        🎥 <span>Video</span>
+        <input type="file" id="video-input" accept="video/*" hidden>
+      </label>
+    </div>
+    <span class="char-count"><span id="char-count">0</span>/1000</span>
+    <button id="post-btn" disabled>🚀 Post</button>
+  </div>
+</div>
+
+<!-- Feed -->
+<div id="feed">
+  {% include 'social/_post_list.html' %}
+
+  {% if not posts %}
+  <div class="empty">
+    <h3>No posts yet</h3>
+    <p>Follow someone or share your first thought above!</p>
+  </div>
+  {% endif %}
+</div>
+
+{% if has_next %}
+<div id="load-more-sentinel" style="height: 40px;"></div>
+<button id="load-more-btn" style="display:block;margin:1rem auto;padding:.85rem 2.5rem;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:none;border-radius:50px;cursor:pointer;font-weight:700;font-family:inherit;box-shadow:0 8px 20px rgba(99,102,241,.3);">
+  Load More ↓
+</button>
+{% endif %}
+{% endblock %}
