@@ -12,16 +12,18 @@ class Profile(models.Model):
         ('moderator', 'Moderator'),
         ('admin', 'Admin'),
     )
-    
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True, max_length=300)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     cover = models.ImageField(upload_to='covers/', blank=True, null=True)
     location = models.CharField(max_length=100, blank=True)
     website = models.URLField(blank=True, null=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True, unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
     is_banned = models.BooleanField(default=False)
     ban_reason = models.TextField(blank=True)
+    email_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -47,6 +49,21 @@ class Profile(models.Model):
     def can_moderate(self):
         return self.is_moderator
 
+
+class PasswordResetOTP(models.Model):
+    """For forgot password via OTP"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_otps')
+    otp = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        return timezone.now() - self.created_at > timedelta(minutes=10)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.otp}"
 
 class Post(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')

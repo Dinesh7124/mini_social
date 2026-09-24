@@ -106,5 +106,9 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': False,
         },
+
     },
 }
+# Email configuration
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Development: prints to console
+DEFAULT_FROM_EMAIL = 'MiniSocial <noreply@minisocial.com>'

@@ -3,39 +3,60 @@
 
 {% block body %}
 <div class="auth-wrapper">
-  <div class="auth-card">
-    <h2>MiniSocial</h2>
-    <p class="auth-subtitle">Connect. Share. Engage.</p>
+    <div class="auth-card">
+        <h2>MiniSocial</h2>
+        <p class="auth-subtitle">Connect. Share. Engage.</p>
 
-    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        {% if info %}<div class="info" style="background:#eff6ff;color:#1e40af;padding:1rem;border-radius:8px;margin-bottom:1rem;border-left:4px solid #3b82f6;">{{ info }}</div>{% endif %}
 
-    <div class="auth-tabs">
-      <button class="auth-tab active" data-tab="login">Login</button>
-      <button class="auth-tab" data-tab="register">Register</button>
+        <div class="auth-tabs">
+            <button type="button" class="auth-tab {% if not show_register %}active{% endif %}" data-tab="login">Login</button>
+            <button type="button" class="auth-tab {% if show_register %}active{% endif %}" data-tab="register">Register</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form method="POST" action="{% url 'login' %}" class="auth-form" id="login-form" {% if show_register %}style="display:none" {% endif %}>
+            {% csrf_token %}
+            <div class="input-group" data-icon="👤">
+                <input type="text" name="username" placeholder="Username or Email" required autofocus>
+            </div>
+            <div class="input-group" data-icon="🔒">
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <div style="text-align:right;margin-top:-0.5rem;">
+                <a href="{% url 'forgot_password' %}" style="color:#6366f1;font-size:0.85rem;text-decoration:none;">Forgot Password?</a>
+            </div>
+            <button type="submit">Sign In →</button>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form method="POST" action="{% url 'register' %}" class="auth-form" id="register-form" {% if not show_register %}style="display:none" {% endif %}>
+            {% csrf_token %}
+            <div class="input-group" data-icon="👤">
+                <input type="text" name="first_name" placeholder="First Name *" required value="{{ form_data.first_name|default:'' }}">
+            </div>
+            <div class="input-group" data-icon="👤">
+                <input type="text" name="last_name" placeholder="Last Name (optional)" value="{{ form_data.last_name|default:'' }}">
+            </div>
+            <div class="input-group" data-icon="📧">
+                <input type="email" name="email" placeholder="Email Address *" required value="{{ form_data.email|default:'' }}">
+            </div>
+            <div class="input-group" data-icon="📱">
+                <input type="tel" name="phone" placeholder="Phone Number *" required value="{{ form_data.phone|default:'' }}">
+            </div>
+            <div class="input-group" data-icon="🔒">
+                <input type="password" name="password" placeholder="Password (min 6 chars) *" required minlength="6">
+            </div>
+            <div class="input-group" data-icon="🔒">
+                <input type="password" name="password2" placeholder="Confirm Password *" required minlength="6">
+            </div>
+            <p style="font-size:0.8rem;color:#6b7280;margin-top:0.5rem;">
+                Your username will be auto-generated and sent to your email and phone.
+            </p>
+            <button type="submit">Create Account →</button>
+        </form>
     </div>
-
-    <form method="POST" action="{% url 'login' %}" class="auth-form" id="login-form">
-      {% csrf_token %}
-      <div class="input-group" data-icon="👤">
-        <input type="text" name="username" placeholder="Username" required autofocus>
-      </div>
-      <div class="input-group" data-icon="🔒">
-        <input type="password" name="password" placeholder="Password" required>
-      </div>
-      <button type="submit">Sign In →</button>
-    </form>
-
-    <form method="POST" action="{% url 'register' %}" class="auth-form" id="register-form" style="display:none">
-      {% csrf_token %}
-      <div class="input-group" data-icon="👤">
-        <input type="text" name="username" placeholder="Choose a username" required>
-      </div>
-      <div class="input-group" data-icon="🔒">
-        <input type="password" name="password" placeholder="Create a password" required>
-      </div>
-      <button type="submit">Create Account →</button>
-    </form>
-  </div>
 </div>
 
 <script>

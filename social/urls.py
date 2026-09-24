@@ -12,6 +12,9 @@ urlpatterns = [
     path('search/', views.search, name='search'),
     path('api/reaction/<int:post_id>/', views.toggle_reaction, name='toggle_reaction'),
     # Messages / Chat
+    path('forgot-password/', views.forgot_password_view, name='forgot_password'),
+    path('verify-otp/', views.verify_otp_view, name='verify_otp'),
+    path('reset-password/', views.reset_password_view, name='reset_password'),
     path('inbox/', views.inbox, name='inbox'),
     path('chat/<str:username>/', views.chat, name='chat'),
     path('api/message/<str:username>/send/', views.send_message, name='send_message'),

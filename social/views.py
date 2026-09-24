@@ -1,3 +1,4 @@
+# ============ IMPORTS ============
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
@@ -8,10 +9,15 @@ from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.conf import settings
+from django.core.mail import send_mail
 from datetime import timedelta
+import random
+
 from .models import (
     Post, Comment, Like, Follow, Notification,
-    Message, Story, SavedPost, Reaction
+    Message, Story, SavedPost, Reaction, Profile,
+    PasswordResetOTP
 )
 
 
@@ -26,15 +32,130 @@ def _get_reaction_counts(post):
 
 # ============ AUTH ============
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('feed')
+
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        if user:
+        username_or_email = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '').strip()
+
+        user = None
+        if '@' in username_or_email:
+            u = User.objects.filter(email__iexact=username_or_email).first()
+            if u:
+                user = authenticate(request, username=u.username, password=password)
+        else:
+            user = authenticate(request, username=username_or_email, password=password)
+
+        if user is not None:
+            if user.profile.is_banned:
+                return render(request, 'social/login.html', {
+                    'error': f'Your account is banned. Reason: {user.profile.ban_reason}'
+                })
             login(request, user)
-            return redirect('feed')
-        return render(request, 'social/login.html', {'error': 'Invalid credentials'})
+            next_url = request.GET.get('next', 'feed')
+            return redirect(next_url)
+        else:
+            return render(request, 'social/login.html', {
+                'error': 'Invalid username/email or password.',
+            })
+
     return render(request, 'social/login.html')
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('feed')
+
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        phone = request.POST.get('phone', '').strip()
+        password = request.POST.get('password', '').strip()
+        password2 = request.POST.get('password2', '').strip()
+
+        errors = []
+        if not first_name:
+            errors.append('First name is required.')
+        if not email:
+            errors.append('Email is required.')
+        if not phone:
+            errors.append('Phone number is required.')
+        if not password:
+            errors.append('Password is required.')
+        if password != password2:
+            errors.append('Passwords do not match.')
+        if len(password) < 6:
+            errors.append('Password must be at least 6 characters.')
+
+        if email and User.objects.filter(email__iexact=email).exists():
+            errors.append('This email is already registered.')
+        if phone and Profile.objects.filter(phone_number=phone).exists():
+            errors.append('This phone number is already registered.')
+
+        if errors:
+            return render(request, 'social/login.html', {
+                'error': ' | '.join(errors),
+                'show_register': True,
+                'form_data': {
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'email': email,
+                    'phone': phone,
+                }
+            })
+
+        # Auto-generate username
+        base_username = first_name.lower().replace(' ', '')
+        username = base_username + str(random.randint(1000, 9999))
+        while User.objects.filter(username=username).exists():
+            username = base_username + str(random.randint(1000, 9999))
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+        )
+
+        user.profile.phone_number = phone
+        user.profile.save()
+
+        # Send welcome email
+        try:
+            send_mail(
+                subject='Welcome to MiniSocial — Your Account Details',
+                message=f'''Hi {first_name},
+
+Welcome to MiniSocial!
+
+Your account has been created successfully.
+
+Here are your login details:
+----------------------------------------
+Username: {username}
+Email: {email}
+Password: (the one you set)
+----------------------------------------
+
+You can log in using either your username or email.
+
+Happy connecting!
+MiniSocial Team
+''',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f'Email send failed: {e}')
+
+        login(request, user)
+        return redirect('feed')
+
+    return render(request, 'social/login.html', {'show_register': True})
 
 
 def logout_view(request):
@@ -42,16 +163,140 @@ def logout_view(request):
     return redirect('login')
 
 
-def register_view(request):
+# ============ FORGOT PASSWORD (3 Steps) ============
+def forgot_password_view(request):
+    """Step 1: User enters email/phone"""
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        if User.objects.filter(username=username).exists():
-            return render(request, 'social/login.html', {'error': 'Username already taken'})
-        user = User.objects.create_user(username=username, password=password)
-        login(request, user)
-        return redirect('feed')
-    return redirect('login')
+        identifier = request.POST.get('identifier', '').strip()
+
+        user = None
+        if '@' in identifier:
+            user = User.objects.filter(email__iexact=identifier).first()
+        else:
+            profile = Profile.objects.filter(phone_number=identifier).first()
+            if profile:
+                user = profile.user
+
+        if not user:
+            return render(request, 'social/forgot_password.html', {
+                'error': 'No account found with this email/phone.'
+            })
+
+        otp_code = str(random.randint(100000, 999999))
+        PasswordResetOTP.objects.filter(user=user, is_used=False).update(is_used=True)
+        PasswordResetOTP.objects.create(user=user, otp=otp_code)
+
+        try:
+            send_mail(
+                subject='MiniSocial — Password Reset OTP',
+                message=f'''Hi {user.first_name or user.username},
+
+You requested to reset your password.
+
+Your OTP is: {otp_code}
+
+This OTP is valid for 10 minutes.
+
+If you didn't request this, please ignore this email.
+
+MiniSocial Team
+''',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f'Email send failed: {e}')
+
+        return render(request, 'social/forgot_password.html', {
+            'step': 'verify',
+            'identifier': identifier,
+            'dev_otp': otp_code if settings.DEBUG else None,
+            'info': f'OTP sent to {user.email}. Check your inbox.'
+        })
+
+    return render(request, 'social/forgot_password.html')
+
+
+def verify_otp_view(request):
+    """Step 2: User enters OTP"""
+    if request.method == 'POST':
+        identifier = request.POST.get('identifier', '').strip()
+        otp_entered = request.POST.get('otp', '').strip()
+
+        user = None
+        if '@' in identifier:
+            user = User.objects.filter(email__iexact=identifier).first()
+        else:
+            profile = Profile.objects.filter(phone_number=identifier).first()
+            if profile:
+                user = profile.user
+
+        if not user:
+            return render(request, 'social/forgot_password.html', {
+                'error': 'User not found. Please try again.'
+            })
+
+        otp_record = PasswordResetOTP.objects.filter(
+            user=user, otp=otp_entered, is_used=False
+        ).order_by('-created_at').first()
+
+        if not otp_record or otp_record.is_expired():
+            return render(request, 'social/forgot_password.html', {
+                'step': 'verify',
+                'identifier': identifier,
+                'error': 'Invalid or expired OTP. Please try again.'
+            })
+
+        otp_record.is_used = True
+        otp_record.save()
+
+        return render(request, 'social/forgot_password.html', {
+            'step': 'reset',
+            'identifier': identifier,
+            'info': 'OTP verified! Set your new password.'
+        })
+
+    return redirect('forgot_password')
+
+
+def reset_password_view(request):
+    """Step 3: User sets new password"""
+    if request.method == 'POST':
+        identifier = request.POST.get('identifier', '').strip()
+        new_password = request.POST.get('new_password', '').strip()
+        confirm_password = request.POST.get('confirm_password', '').strip()
+
+        if new_password != confirm_password:
+            return render(request, 'social/forgot_password.html', {
+                'step': 'reset',
+                'identifier': identifier,
+                'error': 'Passwords do not match.'
+            })
+
+        if len(new_password) < 6:
+            return render(request, 'social/forgot_password.html', {
+                'step': 'reset',
+                'identifier': identifier,
+                'error': 'Password must be at least 6 characters.'
+            })
+
+        user = None
+        if '@' in identifier:
+            user = User.objects.filter(email__iexact=identifier).first()
+        else:
+            profile = Profile.objects.filter(phone_number=identifier).first()
+            if profile:
+                user = profile.user
+
+        if user:
+            user.set_password(new_password)
+            user.save()
+            return render(request, 'social/login.html', {
+                'info': 'Password reset successful! Please login with your new password.'
+            })
+
+    return redirect('forgot_password')
 
 
 # ============ FEED ============
