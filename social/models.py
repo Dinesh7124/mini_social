@@ -65,6 +65,7 @@ class PasswordResetOTP(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.otp}"
 
+
 class Post(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
     content = models.TextField(max_length=1000, blank=True)

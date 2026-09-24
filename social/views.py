@@ -1,4 +1,9 @@
 # ============ IMPORTS ============
+import os
+import random
+import resend
+from datetime import timedelta
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout
@@ -10,15 +15,40 @@ from django.template.loader import render_to_string
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.conf import settings
-from django.core.mail import send_mail
-from datetime import timedelta
-import random
 
 from .models import (
     Post, Comment, Like, Follow, Notification,
     Message, Story, SavedPost, Reaction, Profile,
     PasswordResetOTP
 )
+
+
+# ============ RESEND CONFIG ============
+resend.api_key = os.environ.get('RESEND_API_KEY', '')
+FROM_EMAIL = 'MiniSocial <onboarding@resend.dev>'  # Resend default testing domain
+
+
+# ============ EMAIL HELPER ============
+def send_email_via_resend(to_email, subject, html_body, text_body=None):
+    """Send email via Resend HTTP API (works on Render free tier)."""
+    if not resend.api_key:
+        print(f'⚠️ RESEND_API_KEY not set. Skipping email to {to_email}')
+        print(f'Subject: {subject}')
+        print(f'Body: {html_body[:200]}...')
+        return False
+
+    try:
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        })
+        print(f'✅ Email sent to {to_email}')
+        return True
+    except Exception as e:
+        print(f'❌ Email send failed: {e}')
+        return False
 
 
 # ============ REACTION HELPERS ============
@@ -123,34 +153,26 @@ def register_view(request):
         user.profile.phone_number = phone
         user.profile.save()
 
-        # Send welcome email
-        try:
-            send_mail(
-                subject='Welcome to MiniSocial — Your Account Details',
-                message=f'''Hi {first_name},
-
-Welcome to MiniSocial!
-
-Your account has been created successfully.
-
-Here are your login details:
-----------------------------------------
-Username: {username}
-Email: {email}
-Password: (the one you set)
-----------------------------------------
-
-You can log in using either your username or email.
-
-Happy connecting!
-MiniSocial Team
-''',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
-            )
-        except Exception as e:
-            print(f'Email send failed: {e}')
+        # Send welcome email via Resend
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#6366f1;">Welcome to MiniSocial, {first_name}! 🎉</h2>
+            <p>Your account has been created successfully.</p>
+            <div style="background:#f4f6f9;padding:15px;border-radius:8px;margin:20px 0;">
+                <h3 style="margin-top:0;">Your Login Details</h3>
+                <p><strong>Username:</strong> {username}</p>
+                <p><strong>Email:</strong> {email}</p>
+                <p><strong>Password:</strong> (the one you set)</p>
+            </div>
+            <p>You can log in using either your username or email.</p>
+            <p>Happy connecting!<br><strong>MiniSocial Team</strong></p>
+        </div>
+        """
+        send_email_via_resend(
+            to_email=email,
+            subject='Welcome to MiniSocial — Your Account Details',
+            html_body=html_body,
+        )
 
         login(request, user)
         return redirect('feed')
@@ -186,27 +208,26 @@ def forgot_password_view(request):
         PasswordResetOTP.objects.filter(user=user, is_used=False).update(is_used=True)
         PasswordResetOTP.objects.create(user=user, otp=otp_code)
 
-        try:
-            send_mail(
-                subject='MiniSocial — Password Reset OTP',
-                message=f'''Hi {user.first_name or user.username},
-
-You requested to reset your password.
-
-Your OTP is: {otp_code}
-
-This OTP is valid for 10 minutes.
-
-If you didn't request this, please ignore this email.
-
-MiniSocial Team
-''',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=True,
-            )
-        except Exception as e:
-            print(f'Email send failed: {e}')
+        # Send OTP via Resend
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#6366f1;">Password Reset OTP</h2>
+            <p>Hi {user.first_name or user.username},</p>
+            <p>You requested to reset your password.</p>
+            <div style="background:#f4f6f9;padding:20px;border-radius:8px;margin:20px 0;text-align:center;">
+                <p style="margin:0;font-size:14px;color:#6b7280;">Your OTP is:</p>
+                <h1 style="font-size:36px;letter-spacing:8px;color:#6366f1;margin:10px 0;">{otp_code}</h1>
+            </div>
+            <p>This OTP is valid for <strong>10 minutes</strong>.</p>
+            <p>If you didn't request this, please ignore this email.</p>
+            <p>MiniSocial Team</p>
+        </div>
+        """
+        send_email_via_resend(
+            to_email=user.email,
+            subject='MiniSocial — Password Reset OTP',
+            html_body=html_body,
+        )
 
         return render(request, 'social/forgot_password.html', {
             'step': 'verify',

@@ -1,7 +1,14 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\mini_social",
+    "\\social",
+    "\\social\\fixtures",
+    "\\social\\management",
+    "\\social\\management\\commands",
+    "\\social\\templates",
+    "\\social\\templates\\social"
   ],
-  "SelectedNode": "\\manage.py",
+  "SelectedNode": "\\social\\management\\commands\\seed_data.py",
   "PreviewInSolutionExplorer": false
 }
